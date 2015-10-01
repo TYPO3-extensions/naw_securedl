@@ -113,7 +113,7 @@ class HtmlParser {
 	public function parse($html) {
 		$rest = $html;
 		$result = '';
-		while (preg_match('/(?i)(<link|<source|<a|<img|<video)+?.[^>]*(href|src|poster)=(\"??)([^\" >]*?)\\3[^>]*>/siU', $html, $match)) {  // suchendes secured Verzeichnis
+		while (preg_match('/(?i)(<link|<source|<a|<img|<video)+?.[^>]*(href|src|srcset|poster)=(\"??)([^\" >]*?)\\3[^>]*>/siU', $html, $match)) {  // suchendes secured Verzeichnis
 			$cont = explode($match[0], $html, 2);
 			$vor = $cont[0];
 			$tag = $match[0];
@@ -178,6 +178,51 @@ class HtmlParser {
 			}
 
 			$tag .= $add;
+		}
+
+		if (preg_match('/srcset="([^\">]*?)"/i', $tag, $matchedSources)) {
+			if ($this->logLevel === 2 || $this->logLevel === 3) {
+				debug('/srcset="([^\">]*?)"/i');
+			}
+			if ($this->logLevel === 2 || $this->logLevel === 3) {
+				debug($matchedSources);
+			}
+
+			// Only replace within srcset attribute
+			$tagexp = explode($matchedSources[0], $tag, 2);
+			$tagFragment = $matchedSources[0] . $tagexp[1];
+			$tag = $tagexp[0];
+
+			// Walk through sources in srcset
+			$matchedSources = explode(',', $matchedSources[1]);
+			foreach ($matchedSources as $matchedSource) {
+				// Get url part of source
+				$matchedSource = explode(' ', str_replace("\t", ' ', trim($matchedSource)), 2);
+				$matchedSource = trim($matchedSource[0]);
+
+				// Check if url matches
+				if (preg_match('/(?:' . $this->softQuoteExpression($this->domainPattern) . ')?(\/?(?:' . $this->softQuoteExpression($toSecureDirectoryExpression) . ')+?.*?(?:(?i)' . $this->fileExtensionPattern . '))/i', $matchedSource, $matchedUrls)) {
+					// Replace with secured url
+					$replace = htmlspecialchars($this->delegate->publishResourceUri($matchedUrls[1]));
+					$tagexp = explode($matchedUrls[1], $tagFragment, 2);
+
+					if ($this->logLevel === 2 || $this->logLevel === 3) {
+						debug($tagexp[0]);
+					}
+					if ($this->logLevel === 2 || $this->logLevel === 3) {
+						debug($replace);
+					}
+
+					$tag .= $tagexp[0] . $replace;
+					$tagFragment = $tagexp[1];
+				}
+			}
+
+			if ($this->logLevel === 2 || $this->logLevel === 3) {
+				debug($tagFragment);
+			}
+
+			$tag .= $tagFragment;
 		}
 		return $tag;
 	}
